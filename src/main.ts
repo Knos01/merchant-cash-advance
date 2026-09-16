@@ -7,6 +7,7 @@ export async function main() {
     for (const today of dates) {
         const billingApi = new BillingApi(today);
         const advances = await billingApi.getAdvancesForDate();
+        const revenues = await billingApi.getCustomerRevenuesForDate(4, today);
     }
 }
 
