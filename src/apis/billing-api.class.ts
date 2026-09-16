@@ -1,50 +1,74 @@
 import type { Advance } from "../types/index.ts";
 
 interface IBillingApiInterface {
-    getAdvances(): Promise<Advance[]>;
+    getAdvancesForDate(): Promise<Advance[]>;
     getCustomerRevenuesForDate(customerId: number, forDate: string): Promise<number>;
-    chargeMandate(mandateId: number, amount: string): Promise<boolean>; 
+    chargeMandate(mandateId: number, amount: string): Promise<boolean>;
     setBillingComplete(advanceId: string): Promise<void>;
 }
 
 export class BillingApi implements IBillingApiInterface {
-   private baseUrl = "https://billing.eng-test.wayflyer.com/v2";
-   
-   async getAdvances () {
-     console.log("here")
-     const response = await fetch(`${this.baseUrl}/advances`);
-     const body = response.json();
+    private readonly today: string;
+    private readonly baseUrl: string;
 
-     console.log(body);
-     return body as any;
-   }
+    constructor(today: string, baseUrl = "https://billing.eng-test.wayflyer.com/v2") {
+        this.today = today;
+        this.baseUrl = baseUrl;
+    }
 
-   async getCustomerRevenuesForDate(customerId: number, forDate: string): Promise<number> {
-     const response = await fetch(`${this.baseUrl}/customers/${customerId}/revenues/${forDate}`);
+    async getAdvancesForDate() {
+        console.log("here")
+        const response = await fetch(`${this.baseUrl}/advances`,
+            {
+                headers: {
+                    "Today": this.today
+                }
+            }
+        );
+        const body = await response.json();
 
-     const body = response.json();
-     console.log(body);
-     return body as any;
-   }
+        console.log(body);
+        return body as any;
+    }
 
-   async chargeMandate(mandateId: number, amount: string): Promise<boolean> {
-    const response = await fetch(`${this.baseUrl}/mandates/${mandateId}`, {
-        method: "POST",
-        body: JSON.stringify(amount)
-    });
+    async getCustomerRevenuesForDate(customerId: number, forDate: string): Promise<number> {
+        const response = await fetch(`${this.baseUrl}/customers/${customerId}/revenues/${forDate}`, {
+            headers: {
+                "Today": this.today
+            }
+        });
 
-     const body = response.json();
-     console.log(body);
-     return body as any;
-   }
+        const body = await response.json();
+        console.log(body);
+        return body as any;
+    }
 
-   async setBillingComplete(advanceId: string): Promise<void> {
-    const response = await fetch(`${this.baseUrl}/advances/${advanceId}/billing_complete`, {
-        method: "POST",
-    });
+    async chargeMandate(mandateId: number, amount: string): Promise<boolean> {
+        const response = await fetch(`${this.baseUrl}/mandates/${mandateId}/charge`, {
+            method: "POST",
+            body: JSON.stringify({ amount }),
+            headers: {
+                "Content-Type": "application/json",
+                "Today": this.today
+            }
+        });
 
-     const body = response.json();
-     console.log(body);
-     
-   }
+        const body = await response.json();
+        console.log(body);
+        return body as any;
+    }
+
+    async setBillingComplete(advanceId: string): Promise<void> {
+        const response = await fetch(`${this.baseUrl}/advances/${advanceId}/billing_complete`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Today": this.today
+            }
+        });
+
+        const body = await response.json();
+        console.log(body);
+
+    }
 }
