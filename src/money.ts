@@ -9,13 +9,13 @@ export function parseAmount(amount: string): Cents {
     if (!match) {
         throw new Error(`Invalid amount: "${amount}"`);
     }
-    const [, units = "", hundredths = ""] = match;
-    return cents(Number(units) * 100 + Number(hundredths));
+    const [, integerPart = "", decimalPart = ""] = match;
+    return cents(Number(integerPart) * 100 + Number(decimalPart));
 }
 
 export function formatAmount(amount: Cents): string {
-    const hundredths = amount % 100;
-    return `${(amount - hundredths) / 100}.${String(hundredths).padStart(2, "0")}`;
+    const decimalPart = amount % 100;
+    return `${(amount - decimalPart) / 100}.${String(decimalPart).padStart(2, "0")}`;
 }
 
 export function percentageOf(amount: Cents, percentage: number): Cents {
