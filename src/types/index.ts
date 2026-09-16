@@ -1,3 +1,3 @@
-type Advance = {
+export type Advance = {
     id: number;
 }
