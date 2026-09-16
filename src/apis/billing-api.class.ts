@@ -1,0 +1,3 @@
+class BillingApi implements IBillingApiInterface() {
+   
+}

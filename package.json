@@ -1,0 +1,22 @@
+{
+  "name": "merchant-cash-advance",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Daily billing simulation for merchant cash advances",
+  "type": "module",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "start": "node src/main.ts",
+    "test": "tsc && node --test \"test/**/*.test.ts\"",
+    "test:tz": "TZ=Pacific/Kiritimati node --test \"test/**/*.test.ts\"",
+    "typecheck": "tsc",
+    "format": "prettier --write ."
+  },
+  "devDependencies": {
+    "@types/node": "^22.18.0",
+    "prettier": "^3.6.0",
+    "typescript": "^6.0.0"
+  }
+}

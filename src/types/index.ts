@@ -1,0 +1,3 @@
+type Advance = {
+    id: number;
+}
