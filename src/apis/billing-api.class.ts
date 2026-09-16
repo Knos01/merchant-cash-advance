@@ -23,7 +23,7 @@ export class BillingApi implements IBillingApiInterface {
     async getAdvancesForDate(): Promise<Advance[]> {
         const path = "/advances";
         const response = await this.send("GET", path);
-        await this.expectOk(response, "GET", path);
+        this.expectOk(response, "GET", path);
         const body = (await response.json()) as { advances: Advance[] };
         return body.advances;
     }
@@ -32,10 +32,9 @@ export class BillingApi implements IBillingApiInterface {
         const path = `/customers/${customerId}/revenues/${forDate}`;
         const response = await this.send("GET", path);
         if (response.status === NOT_POSSIBLE_RIGHT_NOW) {
-            await response.body?.cancel();
             return null;
         }
-        await this.expectOk(response, "GET", path);
+        this.expectOk(response, "GET", path);
         const body = (await response.json()) as { amount: string };
         return parseAmount(body.amount);
     }
@@ -44,19 +43,16 @@ export class BillingApi implements IBillingApiInterface {
         const path = `/mandates/${mandateId}/charge`;
         const response = await this.send("POST", path, { amount: formatAmount(amount) });
         if (response.status === NOT_POSSIBLE_RIGHT_NOW) {
-            await response.body?.cancel();
             return false;
         }
-        await this.expectOk(response, "POST", path);
-        await response.body?.cancel();
+        this.expectOk(response, "POST", path);
         return true;
     }
 
     async setBillingComplete(advanceId: number): Promise<void> {
         const path = `/advances/${advanceId}/billing_complete`;
         const response = await this.send("POST", path);
-        await this.expectOk(response, "POST", path);
-        await response.body?.cancel();
+        this.expectOk(response, "POST", path);
     }
 
     private async send(method: "GET" | "POST", path: string, body?: object): Promise<Response> {
@@ -72,11 +68,10 @@ export class BillingApi implements IBillingApiInterface {
         }
     }
 
-    private async expectOk(response: Response, method: string, path: string): Promise<void> {
+    private expectOk(response: Response, method: string, path: string): void {
         if (response.ok) {
             return;
         }
-        const text = (await response.text()).slice(0, 200);
-        throw new Error(`${method} ${path} (Today: ${this.today}) -> HTTP ${response.status} ${text}`);
+        throw new Error(`${method} ${path} (Today: ${this.today}) -> HTTP ${response.status}`);
     }
 }
