@@ -10,7 +10,17 @@ type Revenue = { amount: Cents; availableFrom: string };
 
 const DAILY_CHARGE_LIMIT = parseAmount("10000.00");
 
-export class FakeBillingApi {
+export interface IFakeBillingApi {
+    readonly chargeAttempts: ChargeAttempt[];
+    readonly completions: Completion[];
+    withAdvance(advance: Partial<Advance> & { id: number }): this;
+    withRevenue(customerId: number, date: string, amount: string, availableFrom?: string): this;
+    withDailyRevenue(customerId: number, first: string, last: string, amount: string): this;
+    rejectingChargesOn(mandateId: number, today: string): this;
+    forDay(today: string): IBillingApi;
+}
+
+export class FakeBillingApi implements IFakeBillingApi {
     readonly chargeAttempts: ChargeAttempt[] = [];
     readonly completions: Completion[] = [];
     private readonly advances: Advance[] = [];

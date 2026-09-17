@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { Biller } from "../src/biller.class.ts";
 import { dateRange } from "../src/dates.ts";
-import { FakeBillingApi } from "./support/fake-billing-api.ts";
+import { FakeBillingApi } from "./support/fake-billing-api.class.ts";
 
 async function simulate(fake: FakeBillingApi, first: string, last: string): Promise<Biller> {
     const biller = new Biller();

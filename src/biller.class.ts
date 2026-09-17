@@ -5,7 +5,12 @@ import type { Advance, AdvanceBilling } from "./types/index.ts";
 
 export const DAILY_CHARGE_LIMIT: Cents = parseAmount("10000.00");
 
-export class Biller {
+export interface IBiller {
+    runForDay(api: IBillingApi, today: string): Promise<void>;
+    getBillings(): AdvanceBilling[];
+}
+
+export class Biller implements IBiller {
     private readonly billings = new Map<number, AdvanceBilling>();
 
     async runForDay(api: IBillingApi, today: string): Promise<void> {
