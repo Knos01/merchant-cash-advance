@@ -41,7 +41,7 @@ Every simulated day, `Biller.runForDay`:
     - charges `min(due − collected, total − collected, 10000.00)` once, and adds it to `collected` only if the charge succeeds;
     - calls `billing_complete` when `collected` reaches `total_advanced + fee`.
 
-Late revenue, the daily limit and rejected charges don't need special cases: each one simply leaves `due − collected` above zero, and it's charged on a later day.
+Late revenue, the daily limit and rejected charges don't need special cases: late revenue is added to `due` on the day it arrives, while the daily limit and rejected charges leave `due − collected` above zero, so the rest is charged on a later day.
 
 Project layout:
 
@@ -52,6 +52,7 @@ Project layout:
 | `src/biller.class.ts`                    | Billing rules and per-advance state                                       |
 | `src/apis/billing-api.class.ts`          | HTTP client: `Today` header, status mapping, errors that name the request |
 | `src/money.ts`                           | Integer cents and all the arithmetic on them                              |
+| `src/types/index.ts`                     | `Advance` (API shape) and `AdvanceBilling` (per-advance billing state)    |
 | `src/dates.ts`                           | `yyyy-mm-dd` dates, UTC only                                              |
 | `src/report.ts`                          | End-of-run summary                                                        |
 | `test/support/fake-billing-api.class.ts` | In-memory API used by the tests                                           |
@@ -70,18 +71,18 @@ Project layout:
 
 ## Design decisions
 
-- **Integer cents rather than floating-point amounts**, because equality checks like `collected === total` must be exact. `Cents` is a branded type that can only be created by `money.ts`, which checks every result.
+- **Integer cents rather than floating-point amounts**, because equality checks like `collected === total` must be exact. `Cents` is a branded type that is only created through `money.ts`, which checks every result.
 - **530 returned as a value (`null` / `false`) rather than thrown**, because "revenue not available yet" and "charge rejected" are expected outcomes, not errors.
 - **Running totals per advance rather than a log of every revenue share and charge**, because the simulation only needs the balance. In production I'd store charges and revenue shares as rows and derive the balances from them, for auditability and recovery.
 - **The billing rules depend on an `IBillingApi` interface**, not on the HTTP client, so the tests can run them against a fake. The simulation creates one client per day, with that day as the `Today` header.
 - **Sequential requests**, because the run is short (a few hundred requests) and the order of calls stays predictable.
-- **Native TypeScript on Node with `node:test`** rather than a build step and a test framework, so there is nothing to install beyond type checking.
+- **Native TypeScript on Node with `node:test`**, so there's no build step and no test framework: `npm ci` only adds the type checker and the formatter.
 
 ## Tests
 
 `npm test` runs 31 tests, offline, with 100% line coverage of the billing rules, the API client, money and dates:
 
-- **Billing scenarios** (`test/billing.test.ts`) run against a fake API and assert the exact sequence of charges and completions: start date, final charge truncation, late revenue, the daily limit (including with late revenue, rejections and a final payment above the limit), retries, completion only after a successful final payment, early full repayment, advances created mid-period and shared mandates. The fake also fails a test if the code asks for today's revenue, charges zero or more than 10000.00, or completes an advance twice.
+- **Billing scenarios** (`test/billing.test.ts`) run against a fake API and assert the exact charges made (day, amount and, where it matters, whether they were rejected) and the completions where relevant: start date, final charge truncation, late revenue, the daily limit (including with late revenue, rejections and a final payment above the limit), retries, completion only after a successful final payment, early full repayment, advances created mid-period and shared mandates. The fake also fails a test if the code asks for today's revenue, charges zero or more than 10000.00, or completes an advance twice.
 - **Full period** (`test/simulation.test.ts`) bills the five advances returned by the real API with synthetic revenue, late revenue and rejections, and checks the totals and completions.
 - **HTTP client** (`test/billing-api.test.ts`) runs against a local HTTP server: headers, JSON body, 530 handling, other statuses and no response.
 - **Money** (`test/money.test.ts`): parsing, formatting, rounding and rejected inputs.
