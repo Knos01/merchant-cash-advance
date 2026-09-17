@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { Biller } from "../src/billing.ts";
+import { Biller } from "../src/biller.class.ts";
 import { dateRange } from "../src/dates.ts";
 import { FakeBillingApi } from "./support/fake-billing-api.ts";
 

@@ -1,5 +1,5 @@
 import { BillingApi } from "./apis/billing-api.class.ts";
-import { Biller } from "./billing.ts";
+import { Biller } from "./biller.class.ts";
 import { dateRange } from "./dates.ts";
 
 const START_DATE = "2022-01-01";
@@ -10,7 +10,9 @@ export async function main() {
     for (const today of dateRange(START_DATE, END_DATE)) {
         await biller.runForDay(new BillingApi(today), today);
     }
-    // TODO: print one line per advance from biller.getBillings(): id, total, collected, completed
+
+    const billings = biller.getBillings();
+    console.log(billings)
 }
 
 await main();
