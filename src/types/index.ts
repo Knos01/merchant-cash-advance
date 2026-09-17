@@ -14,7 +14,7 @@ export type Advance = {
 export type AdvanceBilling = {
     advance: Advance;
     total: Cents;
-    owed: Cents;
+    due: Cents;
     collected: Cents;
     revenueDates: Set<string>;
     completed: boolean;

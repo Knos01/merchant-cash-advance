@@ -4,14 +4,14 @@ import { formatAmount, parseAmount, type Cents } from "../money.ts";
 const NOT_POSSIBLE_RIGHT_NOW = 530;
 const REQUEST_TIMEOUT_MS = 30_000;
 
-export interface IBillingApiInterface {
+export interface IBillingApi {
     getAdvancesForDate(): Promise<Advance[]>;
     getCustomerRevenuesForDate(customerId: number, forDate: string): Promise<Cents | null>;
     chargeMandate(mandateId: number, amount: Cents): Promise<boolean>;
     setBillingComplete(advanceId: number): Promise<void>;
 }
 
-export class BillingApi implements IBillingApiInterface {
+export class BillingApi implements IBillingApi {
     private readonly today: string;
     private readonly baseUrl: string;
 
@@ -34,6 +34,7 @@ export class BillingApi implements IBillingApiInterface {
         if (response.status === NOT_POSSIBLE_RIGHT_NOW) {
             return null;
         }
+
         this.expectOk(response, "GET", path);
         const body = (await response.json()) as { amount: string };
         return parseAmount(body.amount);

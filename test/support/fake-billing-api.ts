@@ -1,4 +1,4 @@
-import type { IBillingApiInterface } from "../../src/apis/billing-api.class.ts";
+import type { IBillingApi } from "../../src/apis/billing-api.class.ts";
 import { addDays, dateRange } from "../../src/dates.ts";
 import { parseAmount, type Cents } from "../../src/money.ts";
 import type { Advance } from "../../src/types/index.ts";
@@ -48,7 +48,7 @@ export class FakeBillingApi {
         return this;
     }
 
-    forDay(today: string): IBillingApiInterface {
+    forDay(today: string): IBillingApi {
         return {
             getAdvancesForDate: async () => this.advances.filter((advance) => advance.created <= today),
 

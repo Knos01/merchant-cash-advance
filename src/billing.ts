@@ -1,47 +1,76 @@
-import type { IBillingApiInterface } from "./apis/billing-api.class.ts";
+import type { IBillingApi } from "./apis/billing-api.class.ts";
 import { addDays, dateRange } from "./dates.ts";
 import { minCents, parseAmount, percentageOf, subtractCents, sumCents, ZERO, type Cents } from "./money.ts";
 import type { Advance, AdvanceBilling } from "./types/index.ts";
 
 export const DAILY_CHARGE_LIMIT: Cents = parseAmount("10000.00");
 
-export async function runBillingForDay(
-    api: IBillingApiInterface,
-    today: string,
-    billings: Map<number, AdvanceBilling>,
-): Promise<void> {
-    const advances = await api.getAdvancesForDate();
-    for (const advance of advances) {
-        let billing = billings.get(advance.id)
-        if (!billing) {
-            billing = startBilling(advance)
-            billings.set(advance.id, billing)
+export class Biller {
+    private readonly billings = new Map<number, AdvanceBilling>();
+
+    async runForDay(api: IBillingApi, today: string): Promise<void> {
+        const advances = await api.getAdvancesForDate();
+        for (const advance of advances) {
+            let billing = this.billings.get(advance.id);
+            if (!billing) {
+                billing = this.createBilling(advance);
+                this.billings.set(advance.id, billing);
+            }
+
+            await this.billAdvance(api, today, billing);
+        }
+    }
+
+    getBillings(): AdvanceBilling[] {
+        return [...this.billings.values()];
+    }
+
+    private createBilling(advance: Advance): AdvanceBilling {
+        return {
+            advance,
+            total: sumCents([parseAmount(advance.total_advanced), parseAmount(advance.fee)]),
+            due: ZERO,
+            collected: ZERO,
+            revenueDates: new Set(),
+            completed: false,
+        };
+    }
+
+    private async billAdvance(api: IBillingApi, today: string, billing: AdvanceBilling): Promise<void> {
+        const repaymentStartDate = billing.advance.repayment_start_date;
+        if (billing.completed || today < repaymentStartDate) return;
+
+        for (const date of dateRange(addDays(repaymentStartDate, -1), addDays(today, -1))) {
+            if (billing.revenueDates.has(date)) {
+                continue;
+            }
+
+            const revenue: Cents | null = await api.getCustomerRevenuesForDate(billing.advance.customer_id, date);
+
+            if (revenue === null) {
+                continue;
+            }
+            billing.revenueDates.add(date);
+
+            const share: Cents = percentageOf(revenue, billing.advance.repayment_percentage);
+            billing.due = sumCents([billing.due, share]);
         }
 
-        await billAdvance(api, today, billing);
+        const chargeAmount = minCents(subtractCents(billing.due, billing.collected), subtractCents(billing.total, billing.collected), DAILY_CHARGE_LIMIT);
 
+        if (chargeAmount === ZERO) {
+            return;
+        }
+
+        const success = await api.chargeMandate(billing.advance.mandate_id, chargeAmount);
+
+        if (success) {
+            billing.collected = sumCents([billing.collected, chargeAmount]);
+
+            if (billing.collected === billing.total) {
+                await api.setBillingComplete(billing.advance.id);
+                billing.completed = true;
+            }
+        }
     }
-}
-
-function startBilling(advance: Advance): AdvanceBilling {
-    return {
-        advance,
-        total: sumCents([parseAmount(advance.total_advanced), parseAmount(advance.fee)]),
-        owed: ZERO,
-        collected: ZERO,
-        revenueDates: new Set(),
-        completed: false,
-    };
-}
-
-async function billAdvance(api: IBillingApiInterface, today: string, billing: AdvanceBilling): Promise<void> {
-    // TODO 1. Skip if billing.completed, or if today < repayment_start_date.
-    // TODO 2. For each date in dateRange(repayment_start_date - 1 day, today - 1 day) not in billing.revenueDates:
-    //         revenue = await api.getCustomerRevenuesForDate(customer_id, date)
-    //         if revenue !== null: owed += percentageOf(revenue, repayment_percentage), add date to revenueDates
-    // TODO 3. amount = min(owed - collected, total - collected, DAILY_CHARGE_LIMIT)
-    //         if amount > 0: charged = await api.chargeMandate(mandate_id, amount)
-    //         add amount to collected ONLY if charged is true
-    // TODO 4. If collected === total: await api.setBillingComplete(advance.id), then completed = true
-    throw new Error("TODO: billAdvance");
 }
