@@ -1,34 +1,39 @@
 import type { Advance } from "../types/index.ts";
 import { formatAmount, parseAmount, type Cents } from "../money.ts";
 
+export const BILLING_API_URL = "https://billing.eng-test.wayflyer.com/v2";
+
 const NOT_POSSIBLE_RIGHT_NOW = 530;
 const REQUEST_TIMEOUT_MS = 30_000;
 
 export interface IBillingApi {
-    getAdvancesForDate(): Promise<Advance[]>;
-    getCustomerRevenuesForDate(customerId: number, forDate: string): Promise<Cents | null>;
+    getAdvances(): Promise<Advance[]>;
+    getRevenue(customerId: number, forDate: string): Promise<Cents | null>;
     chargeMandate(mandateId: number, amount: Cents): Promise<boolean>;
     setBillingComplete(advanceId: number): Promise<void>;
 }
+
+export type BillingApiForDay = (today: string) => IBillingApi;
 
 export class BillingApi implements IBillingApi {
     private readonly today: string;
     private readonly baseUrl: string;
 
-    constructor(today: string, baseUrl = "https://billing.eng-test.wayflyer.com/v2") {
+    constructor(today: string, baseUrl = BILLING_API_URL) {
         this.today = today;
         this.baseUrl = baseUrl;
     }
 
-    async getAdvancesForDate(): Promise<Advance[]> {
+    async getAdvances(): Promise<Advance[]> {
         const path = "/advances";
         const response = await this.send("GET", path);
         this.expectOk(response, "GET", path);
+        // TODO: validate the payload at runtime (ids, dates, amounts) instead of trusting its shape.
         const body = (await response.json()) as { advances: Advance[] };
         return body.advances;
     }
 
-    async getCustomerRevenuesForDate(customerId: number, forDate: string): Promise<Cents | null> {
+    async getRevenue(customerId: number, forDate: string): Promise<Cents | null> {
         const path = `/customers/${customerId}/revenues/${forDate}`;
         const response = await this.send("GET", path);
         if (response.status === NOT_POSSIBLE_RIGHT_NOW) {
@@ -46,6 +51,7 @@ export class BillingApi implements IBillingApi {
         if (response.status === NOT_POSSIBLE_RIGHT_NOW) {
             return false;
         }
+
         this.expectOk(response, "POST", path);
         return true;
     }
@@ -65,7 +71,9 @@ export class BillingApi implements IBillingApi {
                 signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
             });
         } catch (error) {
-            throw new Error(`${method} ${path} (Today: ${this.today}) got no response`, { cause: error });
+            throw new Error(`${method} ${path} (Today: ${this.today}) got no response`, {
+                cause: error,
+            });
         }
     }
 
@@ -73,6 +81,7 @@ export class BillingApi implements IBillingApi {
         if (response.ok) {
             return;
         }
+
         throw new Error(`${method} ${path} (Today: ${this.today}) -> HTTP ${response.status}`);
     }
 }

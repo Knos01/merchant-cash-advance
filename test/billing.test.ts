@@ -1,14 +1,12 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { Biller } from "../src/biller.class.ts";
-import { dateRange } from "../src/dates.ts";
+import { runSimulation } from "../src/simulation.ts";
 import { FakeBillingApi } from "./support/fake-billing-api.class.ts";
 
-async function simulate(fake: FakeBillingApi, first: string, last: string): Promise<Biller> {
+async function simulate(fake: FakeBillingApi, firstDay: string, lastDay: string): Promise<Biller> {
     const biller = new Biller();
-    for (const today of dateRange(first, last)) {
-        await biller.runForDay(fake.forDay(today), today);
-    }
+    await runSimulation(biller, (today) => fake.forDay(today), firstDay, lastDay);
     return biller;
 }
 
@@ -154,7 +152,12 @@ test("stops billing a fully repaid advance, even if late revenue arrives afterwa
 
 test("starts billing an advance created mid-period from its own repayment_start_date", async () => {
     const fake = new FakeBillingApi()
-        .withAdvance({ id: 1, created: "2022-01-10", repayment_start_date: "2022-01-12", total_advanced: "10000.00" })
+        .withAdvance({
+            id: 1,
+            created: "2022-01-10",
+            repayment_start_date: "2022-01-12",
+            total_advanced: "10000.00",
+        })
         .withDailyRevenue(1, "2022-01-01", "2022-01-12", "1000.00");
 
     await simulate(fake, "2022-01-01", "2022-01-13");
@@ -183,6 +186,93 @@ test("bills two advances of one customer that share a mandate, each at its own p
             ["2022-01-02", 7, 20_000],
             ["2022-01-03", 7, 10_000],
             ["2022-01-03", 7, 20_000],
+        ],
+    );
+});
+
+test("splits a final repayment above 10000.00 and completes only after the last charge", async () => {
+    const fake = new FakeBillingApi()
+        .withAdvance({
+            id: 1,
+            total_advanced: "20000.00",
+            fee: "5000.00",
+            repayment_percentage: 100,
+        })
+        .withRevenue(1, "2022-01-01", "30000.00")
+        .withDailyRevenue(1, "2022-01-02", "2022-01-04", "0.00");
+
+    await simulate(fake, "2022-01-01", "2022-01-05");
+
+    assert.deepEqual(fake.chargeAttempts, [
+        { today: "2022-01-02", mandateId: 101, amount: 1_000_000, result: true },
+        { today: "2022-01-03", mandateId: 101, amount: 1_000_000, result: true },
+        { today: "2022-01-04", mandateId: 101, amount: 500_000, result: true },
+    ]);
+    assert.deepEqual(fake.completions, [{ today: "2022-01-04", advanceId: 1 }]);
+});
+
+test("applies the 10000.00 limit per advance, not per shared mandate", async () => {
+    const fake = new FakeBillingApi()
+        .withAdvance({
+            id: 1,
+            mandate_id: 7,
+            total_advanced: "100000.00",
+            repayment_percentage: 50,
+        })
+        .withAdvance({
+            id: 2,
+            mandate_id: 7,
+            total_advanced: "100000.00",
+            repayment_percentage: 50,
+        })
+        .withRevenue(1, "2022-01-01", "30000.00");
+
+    await simulate(fake, "2022-01-01", "2022-01-02");
+
+    assert.deepEqual(fake.chargeAttempts, [
+        { today: "2022-01-02", mandateId: 7, amount: 1_000_000, result: true },
+        { today: "2022-01-02", mandateId: 7, amount: 1_000_000, result: true },
+    ]);
+    assert.deepEqual(fake.completions, []);
+});
+
+test("keeps the daily limit when a capped charge is rejected", async () => {
+    const fake = new FakeBillingApi()
+        .withAdvance({ id: 1, total_advanced: "100000.00", repayment_percentage: 10 })
+        .withRevenue(1, "2022-01-01", "250000.00")
+        .withDailyRevenue(1, "2022-01-02", "2022-01-04", "0.00")
+        .rejectingChargesOn(101, "2022-01-02");
+
+    await simulate(fake, "2022-01-01", "2022-01-05");
+
+    assert.deepEqual(
+        fake.chargeAttempts.map((charge) => [charge.today, charge.amount, charge.result]),
+        [
+            ["2022-01-02", 1_000_000, false],
+            ["2022-01-03", 1_000_000, true],
+            ["2022-01-04", 1_000_000, true],
+            ["2022-01-05", 500_000, true],
+        ],
+    );
+});
+
+test("retries a rejected charge even when the previous day's revenue is not yet available", async () => {
+    const fake = new FakeBillingApi()
+        .withAdvance({ id: 1, total_advanced: "10000.00", repayment_percentage: 10 })
+        .withDailyRevenue(1, "2022-01-01", "2022-01-05", "1000.00")
+        .withRevenue(1, "2022-01-03", "1000.00", "2022-01-06")
+        .rejectingChargesOn(101, "2022-01-03");
+
+    await simulate(fake, "2022-01-01", "2022-01-06");
+
+    assert.deepEqual(
+        fake.chargeAttempts.map((charge) => [charge.today, charge.amount, charge.result]),
+        [
+            ["2022-01-02", 10_000, true],
+            ["2022-01-03", 10_000, false],
+            ["2022-01-04", 10_000, true],
+            ["2022-01-05", 10_000, true],
+            ["2022-01-06", 20_000, true],
         ],
     );
 });

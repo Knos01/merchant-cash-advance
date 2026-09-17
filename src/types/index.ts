@@ -9,7 +9,7 @@ export type Advance = {
     mandate_id: number;
     repayment_start_date: string;
     repayment_percentage: number;
-}
+};
 
 export type AdvanceBilling = {
     advance: Advance;
@@ -18,4 +18,4 @@ export type AdvanceBilling = {
     collected: Cents;
     revenueDates: Set<string>;
     completed: boolean;
-}
+};

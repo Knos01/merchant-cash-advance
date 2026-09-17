@@ -49,7 +49,10 @@ test("computes percentages with up to two decimals exactly", () => {
 
 test("rejects percentages that are zero, above 100 or have more than two decimals", () => {
     for (const percentage of [0, -5, 100.01, 2.345, Number.NaN, Number.POSITIVE_INFINITY]) {
-        assert.throws(() => percentageOf(parseAmount("100.00"), percentage), /Unsupported percentage/);
+        assert.throws(
+            () => percentageOf(parseAmount("100.00"), percentage),
+            /Unsupported percentage/,
+        );
     }
 });
 

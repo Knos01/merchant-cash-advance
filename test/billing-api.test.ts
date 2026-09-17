@@ -5,7 +5,13 @@ import { after, before, beforeEach, test } from "node:test";
 import { BillingApi } from "../src/apis/billing-api.class.ts";
 import { parseAmount } from "../src/money.ts";
 
-type RecordedRequest = { method: string; url: string; today: string | undefined; body: string };
+type RecordedRequest = {
+    method: string;
+    url: string;
+    today: string | undefined;
+    contentType: string | undefined;
+    body: string;
+};
 type Reply = { status: number; body?: string };
 
 const TODAY = "2022-01-10";
@@ -31,8 +37,16 @@ before(async () => {
         request.on("end", () => {
             const method = request.method ?? "";
             const url = request.url ?? "";
-            requests.push({ method, url, today: todayHeader(request), body });
-            const { status, body: responseBody = "" } = replies.get(`${method} ${url}`) ?? { status: 404 };
+            requests.push({
+                method,
+                url,
+                today: todayHeader(request),
+                contentType: request.headers["content-type"],
+                body,
+            });
+            const { status, body: responseBody = "" } = replies.get(`${method} ${url}`) ?? {
+                status: 404,
+            };
             response.writeHead(status, { "Content-Type": "text/html; charset=utf-8" });
             response.end(responseBody);
         });
@@ -53,10 +67,18 @@ beforeEach(() => {
 test("sends the Today header and reads advances even though the server says text/html", async () => {
     reply("GET", "/advances", 200, JSON.stringify({ advances: [{ id: 1, mandate_id: 2 }] }));
 
-    const advances = await new BillingApi(TODAY, baseUrl).getAdvancesForDate();
+    const advances = await new BillingApi(TODAY, baseUrl).getAdvances();
 
     assert.deepEqual(advances, [{ id: 1, mandate_id: 2 }]);
-    assert.deepEqual(requests, [{ method: "GET", url: "/advances", today: TODAY, body: "" }]);
+    assert.deepEqual(requests, [
+        {
+            method: "GET",
+            url: "/advances",
+            today: TODAY,
+            contentType: "application/json",
+            body: "",
+        },
+    ]);
 });
 
 test("returns revenue in cents, or null when the API answers 530", async () => {
@@ -64,8 +86,8 @@ test("returns revenue in cents, or null when the API answers 530", async () => {
     reply("GET", "/customers/1/revenues/2022-01-08", 530, "Revenue not yet available");
     const api = new BillingApi(TODAY, baseUrl);
 
-    assert.equal(await api.getCustomerRevenuesForDate(1, "2022-01-09"), 536316);
-    assert.equal(await api.getCustomerRevenuesForDate(1, "2022-01-08"), null);
+    assert.equal(await api.getRevenue(1, "2022-01-09"), 536316);
+    assert.equal(await api.getRevenue(1, "2022-01-08"), null);
 });
 
 test("sends the charge amount as a two-decimal string and maps 530 to a rejected charge", async () => {
@@ -79,6 +101,7 @@ test("sends the charge amount as a two-decimal string and maps 530 to a rejected
         method: "POST",
         url: "/mandates/2/charge",
         today: TODAY,
+        contentType: "application/json",
         body: '{"amount":"3217.05"}',
     });
 });
@@ -88,7 +111,15 @@ test("marks billing complete with the Today header", async () => {
 
     await new BillingApi(TODAY, baseUrl).setBillingComplete(1);
 
-    assert.deepEqual(requests, [{ method: "POST", url: "/advances/1/billing_complete", today: TODAY, body: "" }]);
+    assert.deepEqual(requests, [
+        {
+            method: "POST",
+            url: "/advances/1/billing_complete",
+            today: TODAY,
+            contentType: "application/json",
+            body: "",
+        },
+    ]);
 });
 
 test("throws on any other status, naming the request, including 530 where it is not a domain outcome", async () => {
@@ -101,8 +132,8 @@ test("throws on any other status, naming the request, including 530 where it is 
     await assert.rejects(api.chargeMandate(2, parseAmount("1.00")), {
         message: "POST /mandates/2/charge (Today: 2022-01-10) -> HTTP 500",
     });
-    await assert.rejects(api.getCustomerRevenuesForDate(1, "2022-01-09"), /HTTP 404/);
-    await assert.rejects(api.getAdvancesForDate(), /GET \/advances .* HTTP 530/);
+    await assert.rejects(api.getRevenue(1, "2022-01-09"), /HTTP 404/);
+    await assert.rejects(api.getAdvances(), /GET \/advances .* HTTP 530/);
     await assert.rejects(api.setBillingComplete(1), /billing_complete .* HTTP 530/);
 });
 
@@ -112,7 +143,10 @@ test("names the request in flight when no response arrives", async () => {
     const unreachableUrl = `http://127.0.0.1:${(closed.address() as AddressInfo).port}`;
     await new Promise<void>((resolve) => closed.close(() => resolve()));
 
-    await assert.rejects(new BillingApi(TODAY, unreachableUrl).chargeMandate(2, parseAmount("1.00")), {
-        message: "POST /mandates/2/charge (Today: 2022-01-10) got no response",
-    });
+    await assert.rejects(
+        new BillingApi(TODAY, unreachableUrl).chargeMandate(2, parseAmount("1.00")),
+        {
+            message: "POST /mandates/2/charge (Today: 2022-01-10) got no response",
+        },
+    );
 });

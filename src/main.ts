@@ -1,18 +1,13 @@
-import { BillingApi } from "./apis/billing-api.class.ts";
+import { BILLING_API_URL, BillingApi } from "./apis/billing-api.class.ts";
 import { Biller } from "./biller.class.ts";
-import { dateRange } from "./dates.ts";
+import { formatBillingSummary } from "./report.ts";
+import { END_DATE, runSimulation, START_DATE } from "./simulation.ts";
 
-const START_DATE = "2022-01-01";
-const END_DATE = "2022-02-01";
+console.log(
+    `Billing ${START_DATE} to ${END_DATE} against ${BILLING_API_URL} (this sends real charges)`,
+);
 
-export async function main() {
-    const biller = new Biller();
-    for (const today of dateRange(START_DATE, END_DATE)) {
-        await biller.runForDay(new BillingApi(today), today);
-    }
+const biller = new Biller();
+await runSimulation(biller, (today) => new BillingApi(today));
 
-    const billings = biller.getBillings();
-    console.log(billings)
-}
-
-await main();
+console.log(`\n${formatBillingSummary(biller.getBillings())}`);

@@ -1,4 +1,5 @@
 import type { IBillingApi } from "../../src/apis/billing-api.class.ts";
+import { DAILY_CHARGE_LIMIT } from "../../src/biller.class.ts";
 import { addDays, dateRange } from "../../src/dates.ts";
 import { parseAmount, type Cents } from "../../src/money.ts";
 import type { Advance } from "../../src/types/index.ts";
@@ -7,8 +8,6 @@ export type ChargeAttempt = { today: string; mandateId: number; amount: Cents; r
 export type Completion = { today: string; advanceId: number };
 
 type Revenue = { amount: Cents; availableFrom: string };
-
-const DAILY_CHARGE_LIMIT = parseAmount("10000.00");
 
 export interface IFakeBillingApi {
     readonly chargeAttempts: ChargeAttempt[];
@@ -41,8 +40,16 @@ export class FakeBillingApi implements IFakeBillingApi {
         return this;
     }
 
-    withRevenue(customerId: number, date: string, amount: string, availableFrom = addDays(date, 1)): this {
-        this.revenues.set(revenueKey(customerId, date), { amount: parseAmount(amount), availableFrom });
+    withRevenue(
+        customerId: number,
+        date: string,
+        amount: string,
+        availableFrom = addDays(date, 1),
+    ): this {
+        this.revenues.set(revenueKey(customerId, date), {
+            amount: parseAmount(amount),
+            availableFrom,
+        });
         return this;
     }
 
@@ -60,9 +67,9 @@ export class FakeBillingApi implements IFakeBillingApi {
 
     forDay(today: string): IBillingApi {
         return {
-            getAdvancesForDate: async () => this.advances.filter((advance) => advance.created <= today),
+            getAdvances: async () => this.advances.filter((advance) => advance.created <= today),
 
-            getCustomerRevenuesForDate: async (customerId, forDate) => {
+            getRevenue: async (customerId, forDate) => {
                 if (forDate >= today) {
                     throw new Error(`Revenue for ${forDate} requested on ${today}`);
                 }
@@ -75,7 +82,9 @@ export class FakeBillingApi implements IFakeBillingApi {
 
             chargeMandate: async (mandateId, amount) => {
                 if (amount <= 0 || amount > DAILY_CHARGE_LIMIT) {
-                    throw new Error(`Invalid charge of ${amount} cents on mandate ${mandateId} on ${today}`);
+                    throw new Error(
+                        `Invalid charge of ${amount} cents on mandate ${mandateId} on ${today}`,
+                    );
                 }
                 const result = !this.rejectedCharges.has(`${mandateId}|${today}`);
                 this.chargeAttempts.push({ today, mandateId, amount, result });
