@@ -11,6 +11,7 @@
     "start": "node src/main.ts",
     "test": "tsc && node --test \"test/**/*.test.ts\"",
     "test:tz": "TZ=Pacific/Kiritimati node --test \"test/**/*.test.ts\"",
+    "test:coverage": "node --test --experimental-test-coverage --test-coverage-include='src/**' \"test/**/*.test.ts\"",
     "typecheck": "tsc",
     "format": "prettier --write ."
   },

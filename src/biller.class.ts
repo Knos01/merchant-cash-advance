@@ -55,6 +55,7 @@ export class Biller implements IBiller {
             if (revenue === null) {
                 continue;
             }
+            
             billing.revenueDates.add(date);
 
             const share: Cents = percentageOf(revenue, billing.advance.repayment_percentage);
