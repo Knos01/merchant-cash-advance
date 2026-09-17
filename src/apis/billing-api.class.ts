@@ -58,7 +58,7 @@ export class BillingApi implements IBillingApi {
 
     async setBillingComplete(advanceId: number): Promise<void> {
         const path = `/advances/${advanceId}/billing_complete`;
-        const response = await this.send("POST", path);
+        const response = await this.send("POST", path, {});
         this.expectOk(response, "POST", path);
     }
 

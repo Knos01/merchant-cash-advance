@@ -117,7 +117,7 @@ test("marks billing complete with the Today header", async () => {
             url: "/advances/1/billing_complete",
             today: TODAY,
             contentType: "application/json",
-            body: "",
+            body: "{}",
         },
     ]);
 });
